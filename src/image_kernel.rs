@@ -1,5 +1,7 @@
 use std::cmp::{max, min, PartialOrd};
 
+use rayon::prelude::*;
+
 pub fn clamp<T: PartialOrd>(val: T, min: T, max: T) -> T {
     if val < min {
         min
@@ -8,11 +10,6 @@ pub fn clamp<T: PartialOrd>(val: T, min: T, max: T) -> T {
     } else {
         val
     }
-}
-
-#[inline]
-pub fn extract_pixel_rgba(pixel: image::Rgba<u8>) -> (u8, u8, u8, u8) {
-    (pixel[0], pixel[1], pixel[2], pixel[3])
 }
 
 // https://stackoverflow.com/a/596241/3894179
@@ -107,75 +104,79 @@ impl ImageKernel {
     }
 
     pub fn compute_luminance(&mut self) {
-        for y in 0..self.image.height() {
-            for x in 0..self.image.width() {
-                let pixel = self.image.get_pixel_mut(x, y);
-                let (r, g, b, _) = extract_pixel_rgba(*pixel);
-                let brightness = get_brightness(r, g, b);
-                let luminance_value = clamp(brightness, 0, 0xFF);
-
-                pixel[0] = r;
-                pixel[1] = g;
-                pixel[2] = b;
-                pixel[3] = luminance_value as u8;
-            }
-        }
+        self.image.par_chunks_mut(4).for_each(|px| {
+            let brightness = get_brightness(px[0], px[1], px[2]);
+            px[3] = clamp(brightness, 0, 0xFF) as u8;
+        });
     }
 
     pub fn compute_gradient(&mut self) {
         let sobelx = [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]];
         let sobely = [[-1, -2, -1], [0, 0, 0], [1, 2, 1]];
 
-        let mut temp_image =
-            image::DynamicImage::new_rgba8(self.image.width(), self.image.height()).to_rgba();
-        for y in 1..self.image.height() - 1 {
-            for x in 1..self.image.width() - 1 {
-                let dx = self.image.get_pixel(x - 1, y - 1)[3] as i32 * sobelx[0][0]
-                    + self.image.get_pixel(x, y - 1)[3] as i32 * sobelx[0][1]
-                    + self.image.get_pixel(x + 1, y - 1)[3] as i32 * sobelx[0][2]
-                    + self.image.get_pixel(x - 1, y)[3] as i32 * sobelx[1][0]
-                    + self.image.get_pixel(x, y)[3] as i32 * sobelx[1][1]
-                    + self.image.get_pixel(x + 1, y)[3] as i32 * sobelx[1][2]
-                    + self.image.get_pixel(x - 1, y + 1)[3] as i32 * sobelx[2][0]
-                    + self.image.get_pixel(x, y + 1)[3] as i32 * sobelx[2][1]
-                    + self.image.get_pixel(x + 1, y + 1)[3] as i32 * sobelx[2][2];
+        let width = self.image.width();
+        let height = self.image.height();
+        let src = &self.image;
+        let row_bytes = (width * 4) as usize;
+        let mut buf = vec![0u8; row_bytes * height as usize];
 
-                let dy = self.image.get_pixel(x - 1, y - 1)[3] as i32 * sobely[0][0]
-                    + self.image.get_pixel(x, y - 1)[3] as i32 * sobely[0][1]
-                    + self.image.get_pixel(x + 1, y - 1)[3] as i32 * sobely[0][2]
-                    + self.image.get_pixel(x - 1, y)[3] as i32 * sobely[1][0]
-                    + self.image.get_pixel(x, y)[3] as i32 * sobely[1][1]
-                    + self.image.get_pixel(x + 1, y)[3] as i32 * sobely[1][2]
-                    + self.image.get_pixel(x - 1, y + 1)[3] as i32 * sobely[2][0]
-                    + self.image.get_pixel(x, y + 1)[3] as i32 * sobely[2][1]
-                    + self.image.get_pixel(x + 1, y + 1)[3] as i32 * sobely[2][2];
-
-                let derivata = (((dx * dx) + (dy * dy)) as f64).sqrt() as u32;
-
-                let pixel = self.image.get_pixel(x, y);
-                if derivata > 255 {
-                    temp_image.put_pixel(
-                        x,
-                        y,
-                        image::Rgba::<u8>([pixel[0], pixel[1], pixel[2], 0]),
-                    );
-                } else {
-                    temp_image.put_pixel(
-                        x,
-                        y,
-                        image::Rgba::<u8>([pixel[0], pixel[1], pixel[2], (0xFF - derivata) as u8]),
-                    );
+        buf.par_chunks_mut(row_bytes)
+            .enumerate()
+            .for_each(|(y, row)| {
+                let y = y as u32;
+                if y == 0 || y == height - 1 {
+                    return;
                 }
-            }
-        }
-        self.image = temp_image;
+                for x in 1..width - 1 {
+                    let dx = src.get_pixel(x - 1, y - 1)[3] as i32 * sobelx[0][0]
+                        + src.get_pixel(x, y - 1)[3] as i32 * sobelx[0][1]
+                        + src.get_pixel(x + 1, y - 1)[3] as i32 * sobelx[0][2]
+                        + src.get_pixel(x - 1, y)[3] as i32 * sobelx[1][0]
+                        + src.get_pixel(x, y)[3] as i32 * sobelx[1][1]
+                        + src.get_pixel(x + 1, y)[3] as i32 * sobelx[1][2]
+                        + src.get_pixel(x - 1, y + 1)[3] as i32 * sobelx[2][0]
+                        + src.get_pixel(x, y + 1)[3] as i32 * sobelx[2][1]
+                        + src.get_pixel(x + 1, y + 1)[3] as i32 * sobelx[2][2];
+
+                    let dy = src.get_pixel(x - 1, y - 1)[3] as i32 * sobely[0][0]
+                        + src.get_pixel(x, y - 1)[3] as i32 * sobely[0][1]
+                        + src.get_pixel(x + 1, y - 1)[3] as i32 * sobely[0][2]
+                        + src.get_pixel(x - 1, y)[3] as i32 * sobely[1][0]
+                        + src.get_pixel(x, y)[3] as i32 * sobely[1][1]
+                        + src.get_pixel(x + 1, y)[3] as i32 * sobely[1][2]
+                        + src.get_pixel(x - 1, y + 1)[3] as i32 * sobely[2][0]
+                        + src.get_pixel(x, y + 1)[3] as i32 * sobely[2][1]
+                        + src.get_pixel(x + 1, y + 1)[3] as i32 * sobely[2][2];
+
+                    let derivata = (((dx * dx) + (dy * dy)) as f64).sqrt() as u32;
+
+                    let pixel = src.get_pixel(x, y);
+                    let i = (x * 4) as usize;
+                    let alpha = if derivata > 255 {
+                        0
+                    } else {
+                        (0xFF - derivata) as u8
+                    };
+                    row[i..i + 4].copy_from_slice(&[pixel[0], pixel[1], pixel[2], alpha]);
+                }
+            });
+
+        self.image =
+            image::ImageBuffer::from_raw(width, height, buf).expect("Rebuild gradient image");
     }
 
     pub fn push_color(&mut self, strength: u16) {
-        let mut temp_image =
-            image::DynamicImage::new_rgba8(self.image.width(), self.image.height()).to_rgba();
-        for y in 0..self.image.height() {
-            for x in 0..self.image.width() {
+        let width = self.image.width();
+        let height = self.image.height();
+        let src = &self.image;
+        let row_bytes = (width * 4) as usize;
+        let mut buf = vec![0u8; row_bytes * height as usize];
+
+        buf.par_chunks_mut(row_bytes)
+            .enumerate()
+            .for_each(|(y, row)| {
+                let y = y as u32;
+                for x in 0..width {
                 /*
                  * Kernel defination:
                  * --------------
@@ -191,38 +192,30 @@ impl ImageKernel {
 
                 if x == 0 {
                     x_l = 0;
-                } else if x == self.image.width() - 1 {
+                } else if x == width - 1 {
                     x_r = 0;
                 }
 
                 if y == 0 {
                     y_t = 0;
-                } else if y == self.image.height() - 1 {
+                } else if y == height - 1 {
                     y_b = 0;
                 }
 
                 // Top column
-                let tl = *self
-                    .image
-                    .get_pixel((x as i32 + x_l) as u32, (y as i32 + y_t) as u32);
-                let tc = *self.image.get_pixel(x, (y as i32 + y_t) as u32);
-                let tr = *self
-                    .image
-                    .get_pixel((x as i32 + x_r) as u32, (y as i32 + y_t) as u32);
+                let tl = *src.get_pixel((x as i32 + x_l) as u32, (y as i32 + y_t) as u32);
+                let tc = *src.get_pixel(x, (y as i32 + y_t) as u32);
+                let tr = *src.get_pixel((x as i32 + x_r) as u32, (y as i32 + y_t) as u32);
 
                 // Middle column
-                let ml = *self.image.get_pixel((x as i32 + x_l) as u32, y);
-                let mc = *self.image.get_pixel(x, y);
-                let mr = *self.image.get_pixel((x as i32 + x_r) as u32, y);
+                let ml = *src.get_pixel((x as i32 + x_l) as u32, y);
+                let mc = *src.get_pixel(x, y);
+                let mr = *src.get_pixel((x as i32 + x_r) as u32, y);
 
                 // Bottom column
-                let bl = *self
-                    .image
-                    .get_pixel((x as i32 + x_l) as u32, (y as i32 + y_b) as u32);
-                let bc = *self.image.get_pixel(x, (y as i32 + y_b) as u32);
-                let br = *self
-                    .image
-                    .get_pixel((x as i32 + x_r) as u32, (y as i32 + y_b) as u32);
+                let bl = *src.get_pixel((x as i32 + x_l) as u32, (y as i32 + y_b) as u32);
+                let bc = *src.get_pixel(x, (y as i32 + y_b) as u32);
+                let br = *src.get_pixel((x as i32 + x_r) as u32, (y as i32 + y_b) as u32);
 
                 let mut lightest_color = mc;
 
@@ -290,17 +283,27 @@ impl ImageKernel {
                     }
                 }
 
-                temp_image.put_pixel(x, y, lightest_color);
-            }
-        }
-        self.image = temp_image;
+                    let i = (x * 4) as usize;
+                    row[i..i + 4].copy_from_slice(&lightest_color.0);
+                }
+            });
+
+        self.image =
+            image::ImageBuffer::from_raw(width, height, buf).expect("Rebuild push_color image");
     }
 
     pub fn push_gradient(&mut self, strength: u16) {
-        let mut temp_image =
-            image::DynamicImage::new_rgba8(self.image.width(), self.image.height()).to_rgba();
-        for y in 0..self.image.height() {
-            for x in 0..self.image.width() {
+        let width = self.image.width();
+        let height = self.image.height();
+        let src = &self.image;
+        let row_bytes = (width * 4) as usize;
+        let mut buf = vec![0u8; row_bytes * height as usize];
+
+        buf.par_chunks_mut(row_bytes)
+            .enumerate()
+            .for_each(|(y, row)| {
+                let y = y as u32;
+                for x in 0..width {
                 /*
                  * Kernel defination:
                  * --------------
@@ -316,38 +319,30 @@ impl ImageKernel {
 
                 if x == 0 {
                     x_l = 0;
-                } else if x == self.image.width() - 1 {
+                } else if x == width - 1 {
                     x_r = 0;
                 }
 
                 if y == 0 {
                     y_t = 0;
-                } else if y == self.image.height() - 1 {
+                } else if y == height - 1 {
                     y_b = 0;
                 }
 
                 // Top column
-                let tl = *self
-                    .image
-                    .get_pixel((x as i32 + x_l) as u32, (y as i32 + y_t) as u32);
-                let tc = *self.image.get_pixel(x, (y as i32 + y_t) as u32);
-                let tr = *self
-                    .image
-                    .get_pixel((x as i32 + x_r) as u32, (y as i32 + y_t) as u32);
+                let tl = *src.get_pixel((x as i32 + x_l) as u32, (y as i32 + y_t) as u32);
+                let tc = *src.get_pixel(x, (y as i32 + y_t) as u32);
+                let tr = *src.get_pixel((x as i32 + x_r) as u32, (y as i32 + y_t) as u32);
 
                 // Middle column
-                let ml = *self.image.get_pixel((x as i32 + x_l) as u32, y);
-                let mc = *self.image.get_pixel(x, y);
-                let mr = *self.image.get_pixel((x as i32 + x_r) as u32, y);
+                let ml = *src.get_pixel((x as i32 + x_l) as u32, y);
+                let mc = *src.get_pixel(x, y);
+                let mr = *src.get_pixel((x as i32 + x_r) as u32, y);
 
                 // Bottom column
-                let bl = *self
-                    .image
-                    .get_pixel((x as i32 + x_l) as u32, (y as i32 + y_b) as u32);
-                let bc = *self.image.get_pixel(x, (y as i32 + y_b) as u32);
-                let br = *self
-                    .image
-                    .get_pixel((x as i32 + x_r) as u32, (y as i32 + y_b) as u32);
+                let bl = *src.get_pixel((x as i32 + x_l) as u32, (y as i32 + y_b) as u32);
+                let bc = *src.get_pixel(x, (y as i32 + y_b) as u32);
+                let br = *src.get_pixel((x as i32 + x_r) as u32, (y as i32 + y_b) as u32);
 
                 let mut lightest_color = mc;
 
@@ -407,11 +402,14 @@ impl ImageKernel {
                     }
                 }
 
-                lightest_color[3] = 255;
-                temp_image.put_pixel(x, y, lightest_color);
-            }
-        }
-        self.image = temp_image;
+                    lightest_color[3] = 255;
+                    let i = (x * 4) as usize;
+                    row[i..i + 4].copy_from_slice(&lightest_color.0);
+                }
+            });
+
+        self.image = image::ImageBuffer::from_raw(width, height, buf)
+            .expect("Rebuild push_gradient image");
     }
 
     pub fn save(&self, filename: &str) -> std::result::Result<(), std::io::Error> {
