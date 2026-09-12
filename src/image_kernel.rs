@@ -81,7 +81,7 @@ pub struct ImageKernel {
 impl ImageKernel {
     pub fn from_image(image: image::DynamicImage) -> ImageKernel {
         ImageKernel {
-            image: image.to_rgba(),
+            image: image.to_rgba8(),
         }
     }
 
@@ -127,7 +127,7 @@ impl ImageKernel {
         let sobely = [[-1, -2, -1], [0, 0, 0], [1, 2, 1]];
 
         let mut temp_image =
-            image::DynamicImage::new_rgba8(self.image.width(), self.image.height()).to_rgba();
+            image::DynamicImage::new_rgba8(self.image.width(), self.image.height()).to_rgba8();
         for y in 1..self.image.height() - 1 {
             for x in 1..self.image.width() - 1 {
                 let dx = self.image.get_pixel(x - 1, y - 1)[3] as i32 * sobelx[0][0]
@@ -173,7 +173,7 @@ impl ImageKernel {
 
     pub fn push_color(&mut self, strength: u16) {
         let mut temp_image =
-            image::DynamicImage::new_rgba8(self.image.width(), self.image.height()).to_rgba();
+            image::DynamicImage::new_rgba8(self.image.width(), self.image.height()).to_rgba8();
         for y in 0..self.image.height() {
             for x in 0..self.image.width() {
                 /*
@@ -298,7 +298,7 @@ impl ImageKernel {
 
     pub fn push_gradient(&mut self, strength: u16) {
         let mut temp_image =
-            image::DynamicImage::new_rgba8(self.image.width(), self.image.height()).to_rgba();
+            image::DynamicImage::new_rgba8(self.image.width(), self.image.height()).to_rgba8();
         for y in 0..self.image.height() {
             for x in 0..self.image.width() {
                 /*
@@ -414,7 +414,7 @@ impl ImageKernel {
         self.image = temp_image;
     }
 
-    pub fn save(&self, filename: &str) -> std::result::Result<(), std::io::Error> {
+    pub fn save(&self, filename: &str) -> image::ImageResult<()> {
         self.image.save(filename)
     }
 }

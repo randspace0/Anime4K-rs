@@ -1,50 +1,46 @@
-extern crate clap;
-extern crate image;
-extern crate raster;
-
-use clap::{App, Arg};
+use clap::{Arg, Command};
 
 mod image_kernel;
 #[cfg(test)]
 mod test;
 
 fn main() {
-    let matches = App::new("Anime4K-rs")
+    let matches = Command::new("Anime4K-rs")
         .version("0.1")
         .author("Andra Antariksa <andra.antariksa@gmail.com>")
         .about("A High-Quality Real Time Upscaler for Anime Video")
         .arg(
-            Arg::with_name("INPUT")
+            Arg::new("INPUT")
                 .help("Sets the input file to use")
                 .required(true),
         )
         .arg(
-            Arg::with_name("OUTPUT")
+            Arg::new("OUTPUT")
                 .help("Sets the output file")
                 .required(true),
         )
         .arg(
-            Arg::with_name("scale")
-                .short("s")
+            Arg::new("scale")
+                .short('s')
                 .long("scale")
                 .default_value("2")
                 .help("Sets the scaling factor"),
         )
         .arg(
-            Arg::with_name("iteration")
-                .short("i")
+            Arg::new("iteration")
+                .short('i')
                 .long("iteration")
                 .default_value("1")
                 .help("Sets how many the iteration to do"),
         )
         .arg(
-            Arg::with_name("push-color-strength")
+            Arg::new("push-color-strength")
                 .long("pcs")
                 .default_value("0")
                 .help("Sets the push color strength"),
         )
         .arg(
-            Arg::with_name("push-gradient-strength")
+            Arg::new("push-gradient-strength")
                 .long("pgs")
                 .default_value("1")
                 .help("Sets push gradient strength"),
@@ -52,28 +48,28 @@ fn main() {
         .get_matches();
 
     let input_filename = matches
-        .value_of("INPUT")
+        .get_one::<String>("INPUT")
         .expect("Error: Please specify input and output png files.");
     let output_filename = matches
-        .value_of("OUTPUT")
+        .get_one::<String>("OUTPUT")
         .expect("Error: Please specify input and output png files.");
     let scale = matches
-        .value_of("scale")
+        .get_one::<String>("scale")
         .unwrap()
         .parse::<f64>()
         .expect("Error on parsing scale to f64");
     let iteration = matches
-        .value_of("iteration")
+        .get_one::<String>("iteration")
         .unwrap()
         .parse::<u8>()
         .expect("Error on parsing iteration to u8");
     let push_color_strength = matches
-        .value_of("push-color-strength")
+        .get_one::<String>("push-color-strength")
         .unwrap()
         .parse::<f64>()
         .expect("Error on parsing push-color-strength to f64");
     let push_gradient_strength = matches
-        .value_of("push-gradient-strength")
+        .get_one::<String>("push-gradient-strength")
         .unwrap()
         .parse::<f64>()
         .expect("Error on parsing push-gradient-strength to f64");
