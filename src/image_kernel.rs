@@ -26,21 +26,7 @@ pub fn get_largest_alpha_avg(
     c: image::Rgba<u8>,
     strength: u16,
 ) -> image::Rgba<u8> {
-    let new_color_r = ((cc[0] as u32 * (0xFF - strength) as u32
-        + ((a[0] as u32 + b[0] as u32 + c[0] as u32) / 3) * strength as u32)
-        / 0xFF) as u8;
-    let new_color_g = ((cc[1] as u32 * (0xFF - strength) as u32
-        + ((a[1] as u32 + b[1] as u32 + c[1] as u32) / 3) * strength as u32)
-        / 0xFF) as u8;
-    let new_color_b = ((cc[2] as u32 * (0xFF - strength) as u32
-        + ((a[2] as u32 + b[2] as u32 + c[2] as u32) / 3) * strength as u32)
-        / 0xFF) as u8;
-    let new_color_a = ((cc[3] as u32 * (0xFF - strength) as u32
-        + ((a[3] as u32 + b[3] as u32 + c[3] as u32) / 3) * strength as u32)
-        / 0xFF) as u8;
-
-    let new_color = image::Rgba::<u8>([new_color_r, new_color_g, new_color_b, new_color_a]);
-
+    let new_color = get_alpha_avg(cc, a, b, c, strength);
     if new_color[3] > lightest_color[3] {
         new_color
     } else {
@@ -94,7 +80,7 @@ impl ImageKernel {
         let mut raster_image = raster::Image {
             width: self.image.width() as i32,
             height: self.image.height() as i32,
-            bytes: self.image.clone().into_raw(),
+            bytes: std::mem::replace(&mut self.image, image::ImageBuffer::new(0, 0)).into_raw(),
         };
         let mode = raster::interpolate::InterpolationMode::Bicubic;
         raster::interpolate::resample(&mut raster_image, width as i32, height as i32, mode)
@@ -104,9 +90,13 @@ impl ImageKernel {
     }
 
     pub fn compute_luminance(&mut self) {
-        self.image.par_chunks_mut(4).for_each(|px| {
-            let brightness = get_brightness(px[0], px[1], px[2]);
-            px[3] = clamp(brightness, 0, 0xFF) as u8;
+        let row_bytes = (self.image.width() * 4) as usize;
+        self.image.par_chunks_mut(row_bytes.max(4)).for_each(|row| {
+            for px in row.chunks_exact_mut(4) {
+                // get_brightness is a weighted average of u8 channels, so it
+                // is already <= 255 -- no clamp needed here.
+                px[3] = get_brightness(px[0], px[1], px[2]) as u8;
+            }
         });
     }
 
@@ -148,14 +138,16 @@ impl ImageKernel {
                         + src.get_pixel(x, y + 1)[3] as i32 * sobely[2][1]
                         + src.get_pixel(x + 1, y + 1)[3] as i32 * sobely[2][2];
 
-                    let derivata = (((dx * dx) + (dy * dy)) as f64).sqrt() as u32;
+                    let squared = (dx * dx + dy * dy) as u32;
 
                     let pixel = src.get_pixel(x, y);
                     let i = (x * 4) as usize;
-                    let alpha = if derivata > 255 {
+                    // Only need sqrt when it could land <= 255; anything
+                    // above 255*255 is going to be clamped to 0 anyway.
+                    let alpha = if squared > 255 * 255 {
                         0
                     } else {
-                        (0xFF - derivata) as u8
+                        (0xFF - (squared as f64).sqrt() as u32) as u8
                     };
                     row[i..i + 4].copy_from_slice(&[pixel[0], pixel[1], pixel[2], alpha]);
                 }
@@ -190,15 +182,20 @@ impl ImageKernel {
                 let mut y_b: i32 = 1;
                 let mut y_t: i32 = -1;
 
+                // Independent checks (not else-if): on a 1px-wide/tall
+                // image x == 0 and x == width - 1 are both true, and both
+                // sides need to clamp to the same pixel.
                 if x == 0 {
                     x_l = 0;
-                } else if x == width - 1 {
+                }
+                if x == width - 1 {
                     x_r = 0;
                 }
 
                 if y == 0 {
                     y_t = 0;
-                } else if y == height - 1 {
+                }
+                if y == height - 1 {
                     y_b = 0;
                 }
 
@@ -317,15 +314,20 @@ impl ImageKernel {
                 let mut y_b: i32 = 1;
                 let mut y_t: i32 = -1;
 
+                // Independent checks (not else-if): on a 1px-wide/tall
+                // image x == 0 and x == width - 1 are both true, and both
+                // sides need to clamp to the same pixel.
                 if x == 0 {
                     x_l = 0;
-                } else if x == width - 1 {
+                }
+                if x == width - 1 {
                     x_r = 0;
                 }
 
                 if y == 0 {
                     y_t = 0;
-                } else if y == height - 1 {
+                }
+                if y == height - 1 {
                     y_b = 0;
                 }
 
