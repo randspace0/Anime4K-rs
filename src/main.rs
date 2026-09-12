@@ -6,7 +6,7 @@ mod test;
 
 fn main() {
     let matches = Command::new("Anime4K-rs")
-        .version("0.1")
+        .version("0.2")
         .author("Andra Antariksa <andra.antariksa@gmail.com>")
         .about("A High-Quality Real Time Upscaler for Anime Video")
         .arg(
