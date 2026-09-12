@@ -34,7 +34,7 @@ dependencies = [
 
 [[package]]
 name = "anime4k"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "image 0.25.10",
