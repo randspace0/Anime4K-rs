@@ -35,21 +35,21 @@ jobs:
       
       - name: Upload windows artefact
         if: ${{ matrix.os == 'windows-latest' }}
-        uses: actions/upload-artifact@v1
+        uses: actions/upload-artifact@v4
         with:
           name: anime4k-windows
           path: target/release/anime4k.exe
-      
+
       - name: Upload macos artefact
         if: ${{ matrix.os == 'macOS-latest' }}
-        uses: actions/upload-artifact@v1
+        uses: actions/upload-artifact@v4
         with:
           name: anime4k-macos
           path: target/release/anime4k
-      
+
       - name: Upload linux artefact
         if: ${{ matrix.os == 'ubuntu-latest' }}
-        uses: actions/upload-artifact@v1
+        uses: actions/upload-artifact@v4
         with:
           name: anime4k-linux
           path: target/release/anime4k
@@ -63,7 +63,7 @@ jobs:
         run: mkdir release/
 
       - name: Download linux artifact
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: anime4k-linux
           path: .
@@ -71,9 +71,9 @@ jobs:
         uses: montudor/action-zip@v0.1.0
         with:
           args: zip release/anime4k-linux.zip anime4k
-      
+
       - name: Download macos artifact
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: anime4k-macos
           path: .
@@ -81,9 +81,9 @@ jobs:
         uses: montudor/action-zip@v0.1.0
         with:
           args: zip release/anime4k-macos.zip anime4k
-      
+
       - name: Download windows artifact
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: anime4k-windows
           path: .
