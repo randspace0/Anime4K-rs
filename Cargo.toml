@@ -7,7 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-image = "0.22.3"
-clap = "2.33.0"
-raster = { git = "https://github.com/kosinix/raster.git" }
+image = "0.25.10"
+clap = "4.6.6"
+raster = { git = "https://github.com/kosinix/raster.git", rev = "f54e52004ef889748caf2322d5bd9e25837615ef" }
 rayon = "1.5"

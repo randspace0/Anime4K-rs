@@ -64,7 +64,7 @@ pub struct ImageKernel {
 impl ImageKernel {
     pub fn from_image(image: image::DynamicImage) -> ImageKernel {
         ImageKernel {
-            image: image.to_rgba(),
+            image: image.to_rgba8(),
         }
     }
 
@@ -427,7 +427,7 @@ impl ImageKernel {
             .expect("Rebuild push_gradient image");
     }
 
-    pub fn save(&self, filename: &str) -> std::result::Result<(), std::io::Error> {
+    pub fn save(&self, filename: &str) -> image::ImageResult<()> {
         self.image.save(filename)
     }
 }
