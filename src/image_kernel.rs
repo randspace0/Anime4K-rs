@@ -128,27 +128,34 @@ impl ImageKernel {
 
         let mut temp_image =
             image::DynamicImage::new_rgba8(self.image.width(), self.image.height()).to_rgba();
-        for y in 1..self.image.height() - 1 {
-            for x in 1..self.image.width() - 1 {
-                let dx = self.image.get_pixel(x - 1, y - 1)[3] as i32 * sobelx[0][0]
-                    + self.image.get_pixel(x, y - 1)[3] as i32 * sobelx[0][1]
-                    + self.image.get_pixel(x + 1, y - 1)[3] as i32 * sobelx[0][2]
-                    + self.image.get_pixel(x - 1, y)[3] as i32 * sobelx[1][0]
-                    + self.image.get_pixel(x, y)[3] as i32 * sobelx[1][1]
-                    + self.image.get_pixel(x + 1, y)[3] as i32 * sobelx[1][2]
-                    + self.image.get_pixel(x - 1, y + 1)[3] as i32 * sobelx[2][0]
-                    + self.image.get_pixel(x, y + 1)[3] as i32 * sobelx[2][1]
-                    + self.image.get_pixel(x + 1, y + 1)[3] as i32 * sobelx[2][2];
+        for y in 0..self.image.height() {
+            for x in 0..self.image.width() {
+                // Clamp neighbor offsets at the border instead of skipping it,
+                // matching push_color/push_gradient's edge handling.
+                let x_l = if x == 0 { 0 } else { x - 1 };
+                let x_r = if x == self.image.width() - 1 { x } else { x + 1 };
+                let y_t = if y == 0 { 0 } else { y - 1 };
+                let y_b = if y == self.image.height() - 1 { y } else { y + 1 };
 
-                let dy = self.image.get_pixel(x - 1, y - 1)[3] as i32 * sobely[0][0]
-                    + self.image.get_pixel(x, y - 1)[3] as i32 * sobely[0][1]
-                    + self.image.get_pixel(x + 1, y - 1)[3] as i32 * sobely[0][2]
-                    + self.image.get_pixel(x - 1, y)[3] as i32 * sobely[1][0]
+                let dx = self.image.get_pixel(x_l, y_t)[3] as i32 * sobelx[0][0]
+                    + self.image.get_pixel(x, y_t)[3] as i32 * sobelx[0][1]
+                    + self.image.get_pixel(x_r, y_t)[3] as i32 * sobelx[0][2]
+                    + self.image.get_pixel(x_l, y)[3] as i32 * sobelx[1][0]
+                    + self.image.get_pixel(x, y)[3] as i32 * sobelx[1][1]
+                    + self.image.get_pixel(x_r, y)[3] as i32 * sobelx[1][2]
+                    + self.image.get_pixel(x_l, y_b)[3] as i32 * sobelx[2][0]
+                    + self.image.get_pixel(x, y_b)[3] as i32 * sobelx[2][1]
+                    + self.image.get_pixel(x_r, y_b)[3] as i32 * sobelx[2][2];
+
+                let dy = self.image.get_pixel(x_l, y_t)[3] as i32 * sobely[0][0]
+                    + self.image.get_pixel(x, y_t)[3] as i32 * sobely[0][1]
+                    + self.image.get_pixel(x_r, y_t)[3] as i32 * sobely[0][2]
+                    + self.image.get_pixel(x_l, y)[3] as i32 * sobely[1][0]
                     + self.image.get_pixel(x, y)[3] as i32 * sobely[1][1]
-                    + self.image.get_pixel(x + 1, y)[3] as i32 * sobely[1][2]
-                    + self.image.get_pixel(x - 1, y + 1)[3] as i32 * sobely[2][0]
-                    + self.image.get_pixel(x, y + 1)[3] as i32 * sobely[2][1]
-                    + self.image.get_pixel(x + 1, y + 1)[3] as i32 * sobely[2][2];
+                    + self.image.get_pixel(x_r, y)[3] as i32 * sobely[1][2]
+                    + self.image.get_pixel(x_l, y_b)[3] as i32 * sobely[2][0]
+                    + self.image.get_pixel(x, y_b)[3] as i32 * sobely[2][1]
+                    + self.image.get_pixel(x_r, y_b)[3] as i32 * sobely[2][2];
 
                 let derivata = (((dx * dx) + (dy * dy)) as f64).sqrt() as u32;
 
