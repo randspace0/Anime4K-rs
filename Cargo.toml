@@ -10,3 +10,4 @@ edition = "2018"
 image = "0.25.10"
 clap = "4.6.6"
 raster = { git = "https://github.com/kosinix/raster.git", rev = "f54e52004ef889748caf2322d5bd9e25837615ef" }
+rayon = "1.5"
