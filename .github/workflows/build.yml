@@ -1,7 +1,11 @@
-name: ci
+name: build
 on:
-  push:
-  pull_request:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag"
+        required: true
+        default: "v0.1"
 jobs:
   build:
     name: Build
@@ -21,18 +25,18 @@ jobs:
             rust: stable
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v1
-        with:
-          fetch-depth: 1
+        uses: actions/checkout@v4
+
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ matrix.rust }}
           override: true
           profile: minimal
+
       - name: Build release
         run: cargo build --release --verbose
-      
+
       - name: Upload windows artefact
         if: ${{ matrix.os == 'windows-latest' }}
         uses: actions/upload-artifact@v4
@@ -91,11 +95,11 @@ jobs:
         uses: montudor/action-zip@v0.1.0
         with:
           args: zip release/anime4k-windows.zip anime4k.exe
-      
+
       - name: Release artifact
         uses: ncipollo/release-action@v1
         with:
           allowUpdates: true
-          tag: v0.1
+          tag: ${{ github.event.inputs.tag }}
           artifacts: release/*
           token: ${{ secrets.ACCESS_TOKEN }}
