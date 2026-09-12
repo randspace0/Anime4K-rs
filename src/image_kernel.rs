@@ -114,29 +114,35 @@ impl ImageKernel {
             .enumerate()
             .for_each(|(y, row)| {
                 let y = y as u32;
-                if y == 0 || y == height - 1 {
-                    return;
-                }
-                for x in 1..width - 1 {
-                    let dx = src.get_pixel(x - 1, y - 1)[3] as i32 * sobelx[0][0]
-                        + src.get_pixel(x, y - 1)[3] as i32 * sobelx[0][1]
-                        + src.get_pixel(x + 1, y - 1)[3] as i32 * sobelx[0][2]
-                        + src.get_pixel(x - 1, y)[3] as i32 * sobelx[1][0]
-                        + src.get_pixel(x, y)[3] as i32 * sobelx[1][1]
-                        + src.get_pixel(x + 1, y)[3] as i32 * sobelx[1][2]
-                        + src.get_pixel(x - 1, y + 1)[3] as i32 * sobelx[2][0]
-                        + src.get_pixel(x, y + 1)[3] as i32 * sobelx[2][1]
-                        + src.get_pixel(x + 1, y + 1)[3] as i32 * sobelx[2][2];
+                // Clamp neighbor offsets at the border instead of skipping
+                // it, matching push_color/push_gradient's edge handling --
+                // otherwise these pixels stay at buf's zero-init (black,
+                // fully transparent) and bleed into push_gradient's blend.
+                let y_t = if y == 0 { 0 } else { y - 1 };
+                let y_b = if y == height - 1 { y } else { y + 1 };
+                for x in 0..width {
+                    let x_l = if x == 0 { 0 } else { x - 1 };
+                    let x_r = if x == width - 1 { x } else { x + 1 };
 
-                    let dy = src.get_pixel(x - 1, y - 1)[3] as i32 * sobely[0][0]
-                        + src.get_pixel(x, y - 1)[3] as i32 * sobely[0][1]
-                        + src.get_pixel(x + 1, y - 1)[3] as i32 * sobely[0][2]
-                        + src.get_pixel(x - 1, y)[3] as i32 * sobely[1][0]
+                    let dx = src.get_pixel(x_l, y_t)[3] as i32 * sobelx[0][0]
+                        + src.get_pixel(x, y_t)[3] as i32 * sobelx[0][1]
+                        + src.get_pixel(x_r, y_t)[3] as i32 * sobelx[0][2]
+                        + src.get_pixel(x_l, y)[3] as i32 * sobelx[1][0]
+                        + src.get_pixel(x, y)[3] as i32 * sobelx[1][1]
+                        + src.get_pixel(x_r, y)[3] as i32 * sobelx[1][2]
+                        + src.get_pixel(x_l, y_b)[3] as i32 * sobelx[2][0]
+                        + src.get_pixel(x, y_b)[3] as i32 * sobelx[2][1]
+                        + src.get_pixel(x_r, y_b)[3] as i32 * sobelx[2][2];
+
+                    let dy = src.get_pixel(x_l, y_t)[3] as i32 * sobely[0][0]
+                        + src.get_pixel(x, y_t)[3] as i32 * sobely[0][1]
+                        + src.get_pixel(x_r, y_t)[3] as i32 * sobely[0][2]
+                        + src.get_pixel(x_l, y)[3] as i32 * sobely[1][0]
                         + src.get_pixel(x, y)[3] as i32 * sobely[1][1]
-                        + src.get_pixel(x + 1, y)[3] as i32 * sobely[1][2]
-                        + src.get_pixel(x - 1, y + 1)[3] as i32 * sobely[2][0]
-                        + src.get_pixel(x, y + 1)[3] as i32 * sobely[2][1]
-                        + src.get_pixel(x + 1, y + 1)[3] as i32 * sobely[2][2];
+                        + src.get_pixel(x_r, y)[3] as i32 * sobely[1][2]
+                        + src.get_pixel(x_l, y_b)[3] as i32 * sobely[2][0]
+                        + src.get_pixel(x, y_b)[3] as i32 * sobely[2][1]
+                        + src.get_pixel(x_r, y_b)[3] as i32 * sobely[2][2];
 
                     let squared = (dx * dx + dy * dy) as u32;
 
@@ -158,6 +164,10 @@ impl ImageKernel {
     }
 
     pub fn push_color(&mut self, strength: u16) {
+        // Blend weight below is (0xFF - strength), so anything past 0xFF
+        // underflows the subtraction. Matches the clamp the original Java
+        // implementation applies before using this strength value.
+        let strength = clamp(strength, 0, 0xFF);
         let width = self.image.width();
         let height = self.image.height();
         let src = &self.image;
@@ -290,6 +300,9 @@ impl ImageKernel {
     }
 
     pub fn push_gradient(&mut self, strength: u16) {
+        // Same underflow hazard as push_color: clamp before it reaches
+        // the (0xFF - strength) blend weight below.
+        let strength = clamp(strength, 0, 0xFF);
         let width = self.image.width();
         let height = self.image.height();
         let src = &self.image;
