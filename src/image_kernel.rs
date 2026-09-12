@@ -172,6 +172,10 @@ impl ImageKernel {
     }
 
     pub fn push_color(&mut self, strength: u16) {
+        // Blend weight below is (0xFF - strength), so anything past 0xFF
+        // underflows the subtraction. Matches the clamp the original Java
+        // implementation applies before using this strength value.
+        let strength = clamp(strength, 0, 0xFF);
         let mut temp_image =
             image::DynamicImage::new_rgba8(self.image.width(), self.image.height()).to_rgba();
         for y in 0..self.image.height() {
@@ -297,6 +301,9 @@ impl ImageKernel {
     }
 
     pub fn push_gradient(&mut self, strength: u16) {
+        // Same underflow hazard as push_color: clamp before it reaches
+        // the (0xFF - strength) blend weight below.
+        let strength = clamp(strength, 0, 0xFF);
         let mut temp_image =
             image::DynamicImage::new_rgba8(self.image.width(), self.image.height()).to_rgba();
         for y in 0..self.image.height() {
